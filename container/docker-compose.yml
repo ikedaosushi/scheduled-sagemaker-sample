@@ -1,0 +1,13 @@
+version: "3.5"
+services:
+  app:
+    build:
+      context: .
+      dockerfile: train.dockerfile
+    ports:
+      - 7888:8888
+    env_file:
+      - .dockerenv
+    volumes:
+      - ./train.py:/root/workspace/train.py
+    command: jupyter notebook --port=8888 --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token=''

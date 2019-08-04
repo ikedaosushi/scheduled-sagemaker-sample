@@ -1,0 +1,82 @@
+Resources:
+  ECRRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: ${self:custom.fargate.ecr_repo}
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: ${self:custom.fargate.cluster_name}
+  ECSLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: /ecs/logs/${self:custom.resource_base}-ecs-group
+  ECSTaskExecutionRole: # ECSのタスクを外部から実行するロール
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+  ECSTaskRole: # ECSで実行されるタスクが持つロール
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+  ECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Cpu: "256"
+      ExecutionRoleArn: !Ref ECSTaskExecutionRole
+      TaskRoleArn: !Ref ECSTaskRole
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ContainerDefinitions:
+        - Name: ${self:custom.fargate.container_name}
+          Image: ${self:custom.fargate.ecr_uri}:${self:custom.stage}
+          MemoryReservation: 128
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ECSLogGroup
+              awslogs-region: ${self:custom.region}
+              awslogs-stream-prefix: ${self:custom.resource_base}
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: ${self:custom.config.vpc_id}
+      GroupName: ${self:custom.resource_base}-ecs-sg
+      GroupDescription: ${self:custom.resource_base}-ecs-sg
+      Tags:
+        - Key: Name
+          Value: ${self:custom.resource_base}-ecs-sg
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+       AwsvpcConfiguration:
+           AssignPublicIp: ENABLED
+           SecurityGroups:
+             - !Ref ECSSecurityGroup
+           Subnets: ${self:custom.config.subnet_ids}
+      ServiceName: ${self:custom.resource_base}-ecs-service
+      TaskDefinition: !Ref ECSTaskDefinition
+ 
