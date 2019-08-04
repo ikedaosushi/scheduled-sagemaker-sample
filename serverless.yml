@@ -1,0 +1,68 @@
+service: scheduled-sagemaker-app
+
+package:
+ exclude:
+   - ./**
+ include:
+   - handler.py
+
+# plugins:
+#   localPath: './sls_plugins'
+#   modules:
+#     - build_push_ecr
+
+custom:
+  stage: ${opt:stage, "dev"}
+  profile: ${opt:profile, ""}
+  region: ${opt:region, "ap-northeast-1"}
+  config: # ここだけ設定すればOK
+    account_id: ${file(./env.yml):account_id}
+    vpc_id: ${file(./env.yml):vpc_id}
+    subnet_ids: ${file(./env.yml):subnet_ids}
+  resource_base: ${self:service}-${self:custom.stage}
+  fargate:
+    dockerfile: train.dockerfile
+    ecr_uri: ${self:custom.config.account_id}.dkr.ecr.ap-northeast-1.amazonaws.com/${self:custom.fargate.ecr_repo}
+    tag: ${self:custom.stage}
+    cluster_name: ${self:custom.resource_base}-ecs-cluster
+    container_name: ${self:custom.resource_base}-ecs-container
+    ecr_repo: ${self:service}-ecr-image
+  s3:
+    bucket: ${self:custom.resource_base}-bucket
+  sagemaker:
+    endpoint_name: ${self:custom.resource_base}-endpoint
+
+provider:
+  name: aws
+  runtime: python3.7
+  region: ${self:custom.region}
+  stage: ${self:custom.stage}
+  profile: ${self:custom.profile}
+  environment:
+    CLUSTER_NAME: ${self:custom.fargate.cluster_name}
+    TASK_DEFINITION: !Ref ECSTaskDefinition
+    ECS_CONTAINER_NAME: ${self:custom.fargate.container_name}
+    S3_BUCKET: ${self:custom.s3.bucket}
+    SM_ROLE: !GetAtt SageMakerServiceRole.Arn
+    REGION_NAME: ${self:custom.region}
+    DEPLOY_ENDPOINT_NAME: ${self:custom.sagemaker.endpoint_name}
+    SUBNET_IDS: !Join
+      - ","
+      - ${self:custom.config.subnet_ids}
+  iamManagedPolicies:
+    - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+
+functions:
+  train:
+    handler: handler.train
+    events:
+      - schedule:
+          rate: cron(0 15 * * ? *)
+          enabled: false
+  check:
+    handler: handler.check
+
+resources:
+  - ${file(./cloudformations/sagemaker.yml)}
+  - ${file(./cloudformations/fargate.yml)}
+  - ${file(./cloudformations/s3.yml)}

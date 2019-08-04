@@ -4,7 +4,7 @@
 IMAGE=scheduled-sagemaker-app-ecr-image
 TAG=dev # stageによって切り替える
 DOCKERFILE=train.dockerfile
-ECR_URI=xxxxxxxxxxxxxx.dkr.ecr.ap-northeast-1.amazonaws.com/scheduled-sagemaker-app-ecr-image
+ECR_URI=xxxxxxxxxxxxxxx.dkr.ecr.ap-northeast-1.amazonaws.com/scheduled-sagemaker-app-ecr-image
 
 # Build image
 docker build -t "${IMAGE}:${TAG}" -f "${DOCKERFILE}" .

@@ -15,12 +15,12 @@ VAL_SIZE = os.environ.get("VAL_SIZE", 0.2)
 RANDOM_STATE = os.environ.get("RANDOM_STATE", 42)
 
 TRAIN_IMAGE_NAME = os.environ.get("TRAIN_IMAGE_NAME", '501404015308.dkr.ecr.ap-northeast-1.amazonaws.com/xgboost:latest')
-TRAIN_INSTANCE_TYPE = os.environ.get("TRAIN_INSTANCE_TYPE", 'ml.m4.xlarge')
+TRAIN_INSTANCE_TYPE = os.environ.get("TRAIN_INSTANCE_TYPE", 'ml.m5.xlarge')
 TRAIN_INSTANCE_COUNT = os.environ.get("TRAIN_INSTANCE_COUNT", 1)
 
 DEPLOY_INSTANCE_TYPE = os.environ.get("DEPLOY_INSTANCE_TYPE", 'ml.t2.medium')
 DEPLOY_INSTANCE_COUNT = os.environ.get("DEPLOY_INSTANCE_COUNT", 1)
-DEPLOY_ENDPOINT_NAME = os.environ.get("DEPLOY_ENDPOINT_NAME", 'dx-materials')
+DEPLOY_ENDPOINT_NAME = os.environ.get("DEPLOY_ENDPOINT_NAME")
 
 S3_INPUT_PATH = f"s3://{S3_BUCKET}/inputs/raw/data.csv"
 S3_TRAIN_PATH = f"s3://{S3_BUCKET}/inputs/train/train.csv"
@@ -29,9 +29,9 @@ S3_OUTPUT_PATH = f"s3://{S3_BUCKET}/output"
 
 def preprocess():
     # load
-    df = pd.read_csv(S3_INPUT_PATH)
+    df = pd.read_csv(S3_INPUT_PATH, sep=';')
     # transform
-    y_col = 'material'
+    y_col = 'quality'
     x_cols = [c for c in df.columns if c != y_col]
     df = df[[y_col] + x_cols]
     # split
@@ -54,12 +54,13 @@ def train():
 
     # train
     train_params = {
-        "eta": 0.1,
-        "objective": 'multi:softprob',
-        "num_class": 4,
-        "eval_metric": 'mlogloss',
+        "eta": 0.2,
+        "objective":"reg:linear",
+        "max_depth":"5",
+        "eval_metric": 'rmse',
         "num_round":100
     }
+
     xgb.set_hyperparameters(**train_params)
     xgb.fit({
         'train': s3_input(s3_data=S3_TRAIN_PATH, content_type="csv"),
